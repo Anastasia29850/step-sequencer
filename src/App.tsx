@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Square, Volume2, Zap, Music, Activity, Layers, Sparkles, Pencil, Trash2 } from 'lucide-react';
+import { Play, Square, Volume2, Zap, Music, Activity, Layers, Sparkles, Pencil, Trash2, Sliders } from 'lucide-react';
 
 // --- Constants ---
 const TICKS_PER_BAR = 96;
@@ -30,7 +30,6 @@ const TRACKS = [
   { id: 'hihat', name: 'HIHAT', color: 'bg-fuchsia-300', activeColor: 'bg-fuchsia-200', type: 'drum' },
   { id: 'clap', name: 'CLAP', color: 'bg-pink-300', activeColor: 'bg-pink-200', type: 'drum' },
   { id: 'piano', name: 'PIANO', color: 'bg-violet-400', activeColor: 'bg-violet-300', type: 'melodic' },
-  { id: 'violin', name: 'VIOLIN', color: 'bg-amber-400', activeColor: 'bg-amber-300', type: 'melodic' },
   { id: 'sketchpad', name: 'DRAW', color: 'bg-pink-500', activeColor: 'bg-pink-400', type: 'special' },
 ];
 
@@ -151,86 +150,76 @@ class AudioEngine {
   playPiano(time: number, freq: number = 440) {
     if (!this.ctx || !this.masterGain) return;
     const osc = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const sub = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(freq, time);
+    
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(freq * 2, time); // Octave up for shimmer
+
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(freq / 2, time); // Sub-octave for depth
 
     gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(0.3, time + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.6);
+    gain.gain.linearRampToValueAtTime(0.2, time + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.8);
 
     osc.connect(gain);
+    osc2.connect(gain);
+    sub.connect(gain);
     gain.connect(this.masterGain);
 
     osc.start(time);
-    osc.stop(time + 0.6);
+    osc2.start(time);
+    sub.start(time);
+    osc.stop(time + 0.8);
+    osc2.stop(time + 0.8);
+    sub.stop(time + 0.8);
   }
 
-  playViolin(time: number, freq: number = 440) {
-    if (!this.ctx || !this.masterGain) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(freq, time);
-
-    // Simple vibrato
-    const vibrato = this.ctx.createOscillator();
-    const vibratoGain = this.ctx.createGain();
-    vibrato.frequency.value = 5.5;
-    vibratoGain.gain.value = freq * 0.008;
-    vibrato.connect(vibratoGain);
-    vibratoGain.connect(osc.frequency);
-    vibrato.start(time);
-    vibrato.stop(time + 1.2);
-
-    gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(0.15, time + 0.1);
-    gain.gain.exponentialRampToValueAtTime(0.01, time + 1.2);
-
-    osc.connect(gain);
-    gain.connect(this.masterGain);
-
-    osc.start(time);
-    osc.stop(time + 1.2);
-  }
-
-  playSketch(time: number, freq: number, volume: number = 0.2) {
+  playSketch(time: number, freq: number, volume: number = 0.2, settings: { oscType: OscillatorType, decay: number, shimmer: number, cutoff: number }) {
     if (!this.ctx || !this.masterGain) return;
     
-    // Main oscillator (sine for pure tone)
+    // Main oscillator
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
     
     // High-frequency "shimmer" oscillator
     const shimmer = this.ctx.createOscillator();
     const shimmerGain = this.ctx.createGain();
 
-    osc.type = 'sine';
+    osc.type = settings.oscType;
     osc.frequency.setValueAtTime(freq, time);
     
     shimmer.type = 'sine';
     shimmer.frequency.setValueAtTime(freq * 4.01, time); // High harmonic
-    shimmerGain.gain.setValueAtTime(volume * 0.3, time);
+    shimmerGain.gain.setValueAtTime(volume * settings.shimmer, time);
     shimmerGain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
 
-    // Envelope: fast attack, long crystal decay
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(settings.cutoff, time);
+    filter.Q.setValueAtTime(1, time);
+
+    // Envelope: fast attack, configurable decay
     gain.gain.setValueAtTime(0, time);
     gain.gain.linearRampToValueAtTime(volume, time + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 1.5);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + settings.decay);
 
-    osc.connect(gain);
+    osc.connect(filter);
     shimmer.connect(shimmerGain);
-    shimmerGain.connect(gain);
-    
+    shimmerGain.connect(filter);
+    filter.connect(gain);
     gain.connect(this.masterGain);
 
     osc.start(time);
     shimmer.start(time);
     
-    osc.stop(time + 1.5);
-    shimmer.stop(time + 1.5);
+    osc.stop(time + settings.decay);
+    shimmer.stop(time + settings.decay);
   }
 
   playTrack(trackId: string, time: number, freq?: number) {
@@ -240,7 +229,6 @@ class AudioEngine {
       case 'hihat': this.playHihat(time); break;
       case 'clap': this.playClap(time); break;
       case 'piano': this.playPiano(time, freq); break;
-      case 'violin': this.playViolin(time, freq); break;
     }
   }
 }
@@ -248,20 +236,26 @@ class AudioEngine {
 const audioEngine = new AudioEngine();
 
 // --- Components ---
-const DrawMusic = ({ 
+const DrawMusic = React.memo(({ 
   isAudioStarted, 
   resetTrigger, 
   onAddPoint, 
-  onClear 
+  onClear,
+  settings,
+  onSettingsChange
 }: { 
   isAudioStarted: boolean, 
   resetTrigger: number,
   onAddPoint: (tick: number, freq: number, vol: number) => void,
-  onClear: () => void
+  onClear: () => void,
+  settings: { oscType: OscillatorType, decay: number, shimmer: number, cutoff: number },
+  onSettingsChange: (newSettings: any) => void
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const lastPos = useRef<{ x: number, y: number } | null>(null);
+  const lastProcessedReset = useRef<number>(0);
 
   const clearCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -273,7 +267,8 @@ const DrawMusic = ({
   }, [onClear]);
 
   useEffect(() => {
-    if (resetTrigger > 0) {
+    if (resetTrigger > lastProcessedReset.current) {
+      lastProcessedReset.current = resetTrigger;
       clearCanvas();
     }
   }, [resetTrigger, clearCanvas]);
@@ -331,6 +326,10 @@ const DrawMusic = ({
         
         if (tick >= 0 && tick < TICKS_PER_BAR) {
           onAddPoint(tick, freq, vol);
+          if (audioEngine.ctx) {
+            audioEngine.resume();
+            audioEngine.playSketch(audioEngine.ctx.currentTime, freq, vol, settings);
+          }
         }
 
         lastPos.current = { x, y };
@@ -352,6 +351,89 @@ const DrawMusic = ({
         </div>
       </div>
       
+      <button 
+        onClick={() => setShowSettings(!showSettings)}
+        className="absolute top-4 right-16 z-10 p-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-500 hover:text-pink-400 rounded-xl border border-white/5 transition-all opacity-0 group-hover:opacity-100"
+        title="Paramètres du son"
+      >
+        <Sliders className="w-4 h-4" />
+      </button>
+
+      {showSettings && (
+        <div className="absolute top-16 right-6 z-20 p-4 bg-zinc-900/90 backdrop-blur-md rounded-2xl border border-pink-500/20 w-48 space-y-4 shadow-2xl">
+          <div className="space-y-1">
+            <label className="text-[10px] text-zinc-400 uppercase font-bold">Oscillateur</label>
+            <div className="grid grid-cols-2 gap-1">
+              {['sine', 'triangle', 'square', 'sawtooth'].map(type => (
+                <button
+                  key={type}
+                  onClick={() => onSettingsChange({ ...settings, oscType: type as OscillatorType })}
+                  className={`text-[8px] py-1 rounded-md border transition-all uppercase font-bold ${
+                    settings.oscType === type 
+                      ? 'bg-pink-500/20 border-pink-500/40 text-pink-400' 
+                      : 'bg-zinc-800/50 border-white/5 text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  {type.slice(0, 3)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] text-zinc-400 uppercase font-bold">Déclin</label>
+              <span className="text-[9px] text-pink-400 font-mono">{settings.decay.toFixed(1)}s</span>
+            </div>
+            <input 
+              type="range" min="0.1" max="4" step="0.1"
+              value={settings.decay}
+              onChange={(e) => onSettingsChange({ ...settings, decay: parseFloat(e.target.value) })}
+              className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-pink-500"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] text-zinc-400 uppercase font-bold">Shimmer</label>
+              <span className="text-[9px] text-pink-400 font-mono">{(settings.shimmer * 100).toFixed(0)}%</span>
+            </div>
+            <input 
+              type="range" min="0" max="1" step="0.05"
+              value={settings.shimmer}
+              onChange={(e) => onSettingsChange({ ...settings, shimmer: parseFloat(e.target.value) })}
+              className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-pink-500"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] text-zinc-400 uppercase font-bold">Filtre</label>
+              <span className="text-[9px] text-pink-400 font-mono">{settings.cutoff}Hz</span>
+            </div>
+            <input 
+              type="range" min="200" max="8000" step="100"
+              value={settings.cutoff}
+              onChange={(e) => onSettingsChange({ ...settings, cutoff: parseInt(e.target.value) })}
+              className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-pink-500"
+            />
+          </div>
+          <div className="pt-2 border-t border-white/5">
+            <button
+              onClick={() => onSettingsChange({
+                oscType: 'sine',
+                decay: 1.5,
+                shimmer: 0.3,
+                cutoff: 2000,
+              })}
+              className="w-full py-1.5 text-[8px] text-zinc-500 hover:text-pink-400 uppercase font-bold transition-colors"
+            >
+              Réinitialiser
+            </button>
+          </div>
+        </div>
+      )}
+
       <button 
         onClick={clearCanvas}
         className="absolute top-4 right-6 z-10 p-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-500 hover:text-pink-400 rounded-xl border border-white/5 transition-all opacity-0 group-hover:opacity-100"
@@ -380,6 +462,182 @@ const DrawMusic = ({
       />
     </div>
   );
+});
+
+const PastelPop = ({ isAudioStarted }: { isAudioStarted: boolean }) => {
+  const [bubbles, setBubbles] = useState<{ 
+    id: number, 
+    x: number, 
+    y: number, 
+    vx: number, 
+    vy: number, 
+    size: number, 
+    color: string,
+    isMoving: boolean,
+    bounces: number,
+    noteIndex: number
+  }[]>([]);
+  const [score, setScore] = useState(0);
+  const requestRef = useRef<number>();
+
+  const updatePhysics = useCallback(() => {
+    setBubbles(prev => {
+      return prev.map(b => {
+        if (!b.isMoving) return b;
+
+        let { x, y, vx, vy, bounces, size } = b;
+        
+        // Update position
+        x += vx;
+        y += vy;
+
+        let hitWall = false;
+        // Bounce off walls (percentages)
+        if (x < 5 || x > 95) {
+          vx *= -1;
+          x = Math.max(5, Math.min(95, x));
+          hitWall = true;
+        }
+        if (y < 5 || y > 95) {
+          vy *= -1;
+          y = Math.max(5, Math.min(95, y));
+          hitWall = true;
+        }
+
+        if (hitWall) {
+          bounces += 1;
+          // Play sound on bounce
+          if (audioEngine.ctx && bounces <= 2) {
+            const note = SCALE_NOTES[b.noteIndex % SCALE_NOTES.length];
+            audioEngine.playPiano(audioEngine.ctx.currentTime, note.freq);
+          }
+        }
+
+        // If it has bounced 2 times, start shrinking it to disappear
+        if (bounces >= 2) {
+          size *= 0.85;
+        }
+
+        return { ...b, x, y, vx, vy, bounces, size };
+      }).filter(b => b.size > 2); // Remove when tiny
+    });
+    requestRef.current = requestAnimationFrame(updatePhysics);
+  }, []);
+
+  useEffect(() => {
+    if (isAudioStarted) {
+      requestRef.current = requestAnimationFrame(updatePhysics);
+    }
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [isAudioStarted, updatePhysics]);
+
+  useEffect(() => {
+    if (!isAudioStarted) return;
+    const interval = setInterval(() => {
+      setBubbles(prev => {
+        if (prev.length < 20) {
+          return [...prev, {
+            id: Date.now() + Math.random(),
+            x: Math.random() * 80 + 10,
+            y: Math.random() * 80 + 10,
+            vx: 0, // Fixed initially
+            vy: 0,
+            size: Math.random() * 20 + 25,
+            color: [
+              'bg-pink-200', 
+              'bg-violet-200', 
+              'bg-blue-200', 
+              'bg-emerald-200', 
+              'bg-amber-200',
+              'bg-rose-200'
+            ][Math.floor(Math.random() * 6)],
+            isMoving: false,
+            bounces: 0,
+            noteIndex: Math.floor(Math.random() * SCALE_NOTES.length)
+          }];
+        }
+        return prev;
+      });
+    }, 800);
+    return () => clearInterval(interval);
+  }, [isAudioStarted]);
+
+  const handleBubbleClick = (id: number) => {
+    setScore(s => s + 1);
+    setBubbles(prev => prev.map(b => {
+      if (b.id === id) {
+        if (audioEngine.ctx) {
+          audioEngine.resume();
+          const note = SCALE_NOTES[b.noteIndex % SCALE_NOTES.length];
+          audioEngine.playPiano(audioEngine.ctx.currentTime, note.freq * 1.5);
+        }
+
+        // Give it velocity or change it if already moving
+        return { 
+          ...b, 
+          isMoving: true, 
+          vx: (Math.random() - 0.5) * 2.5, 
+          vy: (Math.random() - 0.5) * 2.5 
+        };
+      }
+      return b;
+    }));
+  };
+
+  return (
+    <div className="mt-6 p-4 sm:p-8 bg-zinc-900/30 rounded-[2rem] border border-pink-500/5 relative overflow-hidden h-64 flex flex-col items-center justify-center group/game">
+      <div className="absolute top-4 left-6 flex items-center gap-2 z-10">
+        <div className="p-1.5 bg-pink-500/10 rounded-lg">
+          <Sparkles className="w-3 h-3 text-pink-400" />
+        </div>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-pink-200/40">Mini-Jeu: Pastel Pop</span>
+      </div>
+      
+      <div className="absolute top-4 right-6 flex items-center gap-3 z-10">
+        <div className="bg-black/40 px-3 py-1 rounded-full border border-pink-500/10">
+          <span className="text-[10px] font-mono font-bold text-pink-400 uppercase tracking-tighter">Score: {score}</span>
+        </div>
+        <button 
+          onClick={() => setScore(0)}
+          className="p-1.5 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-500 hover:text-pink-400 rounded-lg border border-white/5 transition-all"
+          title="Reset Score"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+      
+      {!isAudioStarted ? (
+        <div className="flex flex-col items-center gap-2 opacity-40">
+          <Zap className="w-5 h-5 text-pink-500 animate-pulse" />
+          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-500">Activez le studio pour jouer</p>
+        </div>
+      ) : (
+        <div className="w-full h-full relative">
+          {bubbles.map(b => (
+            <button
+              key={b.id}
+              onClick={() => handleBubbleClick(b.id)}
+              className={`absolute rounded-full shadow-[0_0_20px_rgba(0,0,0,0.15)] cursor-pointer ${b.color} border border-white/40 transition-transform duration-200 active:scale-90`}
+              style={{
+                left: `${b.x}%`,
+                top: `${b.y}%`,
+                width: `${b.size}px`,
+                height: `${b.size}px`,
+                transform: 'translate(-50%, -50%)',
+              }}
+            />
+          ))}
+          {bubbles.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-pink-500/20">Attendez les bulles...</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default function App() {
@@ -389,6 +647,12 @@ export default function App() {
   const [isAudioStarted, setIsAudioStarted] = useState(false);
   const [resetTrigger, setResetTrigger] = useState(0);
   const [sketchNotes, setSketchNotes] = useState<Record<number, { freq: number, vol: number }[]>>({});
+  const [sketchSettings, setSketchSettings] = useState({
+    oscType: 'sine' as OscillatorType,
+    decay: 1.5,
+    shimmer: 0.3,
+    cutoff: 2000,
+  });
   
   const [trackConfigs, setTrackConfigs] = useState<Record<string, { steps: any, subdivision: number }>>(() => {
     const initial: Record<string, { steps: any, subdivision: number }> = {};
@@ -426,6 +690,7 @@ export default function App() {
   const timerID = useRef<number | null>(null);
   const trackConfigsRef = useRef(trackConfigs);
   const sketchNotesRef = useRef(sketchNotes);
+  const sketchSettingsRef = useRef(sketchSettings);
   const bpmRef = useRef(bpm);
 
   useEffect(() => {
@@ -437,6 +702,10 @@ export default function App() {
   }, [sketchNotes]);
 
   useEffect(() => {
+    sketchSettingsRef.current = sketchSettings;
+  }, [sketchSettings]);
+
+  useEffect(() => {
     bpmRef.current = bpm;
   }, [bpm]);
 
@@ -445,7 +714,7 @@ export default function App() {
     const notes = sketchNotesRef.current[tick];
     if (notes) {
       notes.forEach(note => {
-        audioEngine.playSketch(time, note.freq, note.vol);
+        audioEngine.playSketch(time, note.freq, note.vol, sketchSettingsRef.current);
       });
     }
 
@@ -730,11 +999,14 @@ export default function App() {
                       </div>
                       <div className="flex-1">
                         <DrawMusic 
-            isAudioStarted={isAudioStarted} 
-            resetTrigger={resetTrigger} 
-            onAddPoint={onAddPoint}
-            onClear={onClear}
-          />
+                          isAudioStarted={isAudioStarted} 
+                          resetTrigger={resetTrigger} 
+                          onAddPoint={onAddPoint}
+                          onClear={onClear}
+                          settings={sketchSettings}
+                          onSettingsChange={setSketchSettings}
+                        />
+                        <PastelPop isAudioStarted={isAudioStarted} />
                       </div>
                     </div>
                   );
