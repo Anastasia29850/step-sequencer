@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Square, Volume2, Zap, Music, Activity, Layers, Sparkles } from 'lucide-react';
+import { Play, Square, Volume2, Zap, Music, Activity, Layers, Sparkles, Pencil, Trash2 } from 'lucide-react';
 
 // --- Constants ---
 const TICKS_PER_BAR = 96;
@@ -31,6 +31,7 @@ const TRACKS = [
   { id: 'clap', name: 'CLAP', color: 'bg-pink-300', activeColor: 'bg-pink-200', type: 'drum' },
   { id: 'piano', name: 'PIANO', color: 'bg-violet-400', activeColor: 'bg-violet-300', type: 'melodic' },
   { id: 'violin', name: 'VIOLIN', color: 'bg-amber-400', activeColor: 'bg-amber-300', type: 'melodic' },
+  { id: 'sketchpad', name: 'DRAW', color: 'bg-pink-500', activeColor: 'bg-pink-400', type: 'special' },
 ];
 
 // --- Audio Engine Helpers ---
@@ -195,6 +196,43 @@ class AudioEngine {
     osc.stop(time + 1.2);
   }
 
+  playSketch(time: number, freq: number, volume: number = 0.2) {
+    if (!this.ctx || !this.masterGain) return;
+    
+    // Main oscillator (sine for pure tone)
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    
+    // High-frequency "shimmer" oscillator
+    const shimmer = this.ctx.createOscillator();
+    const shimmerGain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, time);
+    
+    shimmer.type = 'sine';
+    shimmer.frequency.setValueAtTime(freq * 4.01, time); // High harmonic
+    shimmerGain.gain.setValueAtTime(volume * 0.3, time);
+    shimmerGain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
+
+    // Envelope: fast attack, long crystal decay
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(volume, time + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 1.5);
+
+    osc.connect(gain);
+    shimmer.connect(shimmerGain);
+    shimmerGain.connect(gain);
+    
+    gain.connect(this.masterGain);
+
+    osc.start(time);
+    shimmer.start(time);
+    
+    osc.stop(time + 1.5);
+    shimmer.stop(time + 1.5);
+  }
+
   playTrack(trackId: string, time: number, freq?: number) {
     switch (trackId) {
       case 'kick': this.playKick(time); break;
@@ -209,11 +247,148 @@ class AudioEngine {
 
 const audioEngine = new AudioEngine();
 
+// --- Components ---
+const DrawMusic = ({ 
+  isAudioStarted, 
+  resetTrigger, 
+  onAddPoint, 
+  onClear 
+}: { 
+  isAudioStarted: boolean, 
+  resetTrigger: number,
+  onAddPoint: (tick: number, freq: number, vol: number) => void,
+  onClear: () => void
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const lastPos = useRef<{ x: number, y: number } | null>(null);
+
+  const clearCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    onClear();
+  }, [onClear]);
+
+  useEffect(() => {
+    if (resetTrigger > 0) {
+      clearCanvas();
+    }
+  }, [resetTrigger, clearCanvas]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const resize = () => {
+      const parent = canvas.parentElement;
+      if (parent) {
+        canvas.width = parent.clientWidth;
+        canvas.height = parent.clientHeight;
+      }
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    return () => {
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDrawing || !canvasRef.current || !isAudioStarted) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const ctx = canvasRef.current.getContext('2d');
+    if (ctx && lastPos.current) {
+      const dist = Math.hypot(x - lastPos.current.x, y - lastPos.current.y);
+      
+      // Only draw and record if we've moved enough
+      if (dist > 5) {
+        const hue = (Date.now() / 25) % 360;
+        const solidColor = `hsl(${hue}, 70%, 75%)`;
+        
+        ctx.beginPath();
+        ctx.moveTo(lastPos.current.x, lastPos.current.y);
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = solidColor;
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowBlur = 0;
+        ctx.stroke();
+
+        // Record logic: X is time (tick), Y is pitch
+        const tick = Math.floor((x / canvasRef.current.width) * TICKS_PER_BAR);
+        const freq = 200 + (1 - y / canvasRef.current.height) * 1200;
+        const vol = 0.08 + (x / canvasRef.current.width) * 0.12;
+        
+        if (tick >= 0 && tick < TICKS_PER_BAR) {
+          onAddPoint(tick, freq, vol);
+        }
+
+        lastPos.current = { x, y };
+      }
+    } else {
+      lastPos.current = { x, y };
+    }
+  };
+
+  return (
+    <div className="relative w-full h-96 bg-zinc-900/40 rounded-3xl border border-pink-900/10 overflow-hidden group">
+      <div className="absolute top-4 left-6 z-10 flex items-center gap-3 pointer-events-none">
+        <div className="p-2 bg-pink-500/20 rounded-lg">
+          <Pencil className="w-4 h-4 text-pink-400" />
+        </div>
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-pink-200/60">Draw Music</h3>
+          <p className="text-[9px] text-zinc-500 uppercase tracking-tighter">Draw to record crystal synth patterns into the loop</p>
+        </div>
+      </div>
+      
+      <button 
+        onClick={clearCanvas}
+        className="absolute top-4 right-6 z-10 p-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-500 hover:text-pink-400 rounded-xl border border-white/5 transition-all opacity-0 group-hover:opacity-100"
+        title="Effacer le dessin"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+
+      <canvas
+        ref={canvasRef}
+        onPointerDown={(e) => {
+          setIsDrawing(true);
+          const rect = canvasRef.current!.getBoundingClientRect();
+          lastPos.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }}
+        onPointerUp={() => {
+          setIsDrawing(false);
+          lastPos.current = null;
+        }}
+        onPointerLeave={() => {
+          setIsDrawing(false);
+          lastPos.current = null;
+        }}
+        onPointerMove={handlePointerMove}
+        className="w-full h-full cursor-crosshair touch-none"
+      />
+    </div>
+  );
+};
+
 export default function App() {
   const [bpm, setBpm] = useState(120);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTick, setCurrentTick] = useState(-1);
   const [isAudioStarted, setIsAudioStarted] = useState(false);
+  const [resetTrigger, setResetTrigger] = useState(0);
+  const [sketchNotes, setSketchNotes] = useState<Record<number, { freq: number, vol: number }[]>>({});
   
   const [trackConfigs, setTrackConfigs] = useState<Record<string, { steps: any, subdivision: number }>>(() => {
     const initial: Record<string, { steps: any, subdivision: number }> = {};
@@ -234,11 +409,23 @@ export default function App() {
     return initial;
   });
 
+  const onAddPoint = useCallback((tick: number, freq: number, vol: number) => {
+    setSketchNotes(prev => ({
+      ...prev,
+      [tick]: [...(prev[tick] || []), { freq, vol }]
+    }));
+  }, []);
+
+  const onClear = useCallback(() => {
+    setSketchNotes({});
+  }, []);
+
   // Scheduler Refs
   const nextNoteTime = useRef(0);
   const currentTickRef = useRef(0);
   const timerID = useRef<number | null>(null);
   const trackConfigsRef = useRef(trackConfigs);
+  const sketchNotesRef = useRef(sketchNotes);
   const bpmRef = useRef(bpm);
 
   useEffect(() => {
@@ -246,10 +433,22 @@ export default function App() {
   }, [trackConfigs]);
 
   useEffect(() => {
+    sketchNotesRef.current = sketchNotes;
+  }, [sketchNotes]);
+
+  useEffect(() => {
     bpmRef.current = bpm;
   }, [bpm]);
 
   const scheduleNote = (tick: number, time: number) => {
+    // Play sketch notes for this tick
+    const notes = sketchNotesRef.current[tick];
+    if (notes) {
+      notes.forEach(note => {
+        audioEngine.playSketch(time, note.freq, note.vol);
+      });
+    }
+
     TRACKS.forEach(track => {
       const config = trackConfigsRef.current[track.id];
       const ticksPerStep = TICKS_PER_BAR / config.subdivision;
@@ -420,6 +619,21 @@ export default function App() {
     });
   };
 
+  const resetAll = () => {
+    setTrackConfigs(prev => {
+      const next = { ...prev };
+      TRACKS.forEach(track => {
+        if (track.type === 'melodic') {
+          next[track.id] = { ...next[track.id], steps: Array.from({ length: SCALE_NOTES.length }, () => new Array(next[track.id].subdivision).fill(false)) };
+        } else if (track.type === 'drum') {
+          next[track.id] = { ...next[track.id], steps: new Array(next[track.id].subdivision).fill(false) };
+        }
+      });
+      return next;
+    });
+    setResetTrigger(prev => prev + 1);
+  };
+
   useEffect(() => {
     window.addEventListener('pointerup', handlePointerUp);
     return () => window.removeEventListener('pointerup', handlePointerUp);
@@ -455,6 +669,15 @@ export default function App() {
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button 
+              onClick={resetAll}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold bg-zinc-900/50 text-zinc-400 border border-pink-900/20 hover:bg-zinc-800 transition-all active:scale-95"
+              title="Réinitialiser tout"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="uppercase tracking-widest text-[10px]">Reset</span>
+            </button>
+
+            <button 
               onClick={generateRandomComposition}
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold bg-zinc-900/50 text-pink-400 border border-pink-900/20 hover:bg-zinc-800 transition-all active:scale-95"
               title="Générer une composition aléatoire"
@@ -485,10 +708,37 @@ export default function App() {
             <div className="min-w-[600px] sm:min-w-[800px] space-y-6 sm:space-y-8">
               {TRACKS.map((track) => {
                 const config = trackConfigs[track.id];
-                const ticksPerStep = TICKS_PER_BAR / config.subdivision;
-                const activeStep = currentTick !== -1 && currentTick % ticksPerStep === 0 
+                const ticksPerStep = config ? TICKS_PER_BAR / config.subdivision : 0;
+                const activeStep = currentTick !== -1 && ticksPerStep > 0 && currentTick % ticksPerStep === 0 
                   ? currentTick / ticksPerStep 
                   : -1;
+
+                if (track.type === 'special' && track.id === 'sketchpad') {
+                  return (
+                    <div key={track.id} className="flex flex-col sm:flex-row gap-2 sm:gap-6">
+                      <div className="w-full sm:w-28 flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1.5">
+                        <div className="flex items-center gap-2">
+                          <Pencil className="w-3 h-3 text-pink-400" />
+                          <span className="text-[10px] font-bold tracking-widest text-pink-200/60 uppercase">{track.name}</span>
+                        </div>
+                        <button
+                          onClick={() => setResetTrigger(prev => prev + 1)}
+                          className="text-[7px] px-1.5 py-0.5 rounded-md border border-white/5 bg-zinc-800/30 text-zinc-600 hover:text-pink-400 hover:border-pink-500/30 transition-all uppercase font-bold"
+                        >
+                          Clr
+                        </button>
+                      </div>
+                      <div className="flex-1">
+                        <DrawMusic 
+            isAudioStarted={isAudioStarted} 
+            resetTrigger={resetTrigger} 
+            onAddPoint={onAddPoint}
+            onClear={onClear}
+          />
+                      </div>
+                    </div>
+                  );
+                }
 
                 if (track.type === 'melodic') {
                   return (
@@ -658,8 +908,7 @@ export default function App() {
               <span className="text-[9px] font-bold uppercase tracking-widest text-pink-500">Multi-Touch Grid</span>
             </div>
           </div>
-
-          </div>
+        </div>
       </main>
 
       {/* Start Overlay */}
