@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Square, Volume2, Zap, Music, Activity, Layers, Sparkles } from 'lucide-react';
+import { Play, Square, Volume2, Zap, Music, Activity, Layers, Sparkles, Pencil, Trash2 } from 'lucide-react';
 
 // --- Constants ---
 const TICKS_PER_BAR = 96;
@@ -195,6 +195,41 @@ class AudioEngine {
     osc.stop(time + 1.2);
   }
 
+  playSketch(time: number, freq: number, volume: number = 0.2, color: string = '#F472B6') {
+    if (!this.ctx || !this.masterGain) return;
+    
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const delay = this.ctx.createDelay();
+    const feedback = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, time);
+
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(volume, time + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.8);
+
+    // Delay effect
+    delay.delayTime.value = 0.3;
+    feedback.gain.value = 0.4;
+    filter.frequency.value = 1000;
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    // Feedback loop
+    gain.connect(delay);
+    delay.connect(filter);
+    filter.connect(feedback);
+    feedback.connect(delay);
+    feedback.connect(this.masterGain);
+
+    osc.start(time);
+    osc.stop(time + 0.8);
+  }
+
   playTrack(trackId: string, time: number, freq?: number) {
     switch (trackId) {
       case 'kick': this.playKick(time); break;
@@ -208,6 +243,223 @@ class AudioEngine {
 }
 
 const audioEngine = new AudioEngine();
+
+// --- Components ---
+const SonicSketchpad = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const lastPos = useRef<{ x: number, y: number } | null>(null);
+  const particles = useRef<any[]>([]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Initial clear
+    ctx.fillStyle = '#0A0A0A';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Animation loop
+    let animationFrame: number;
+    const animate = () => {
+      // Fade effect
+      ctx.fillStyle = 'rgba(10, 10, 10, 0.08)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Update and draw particles
+      particles.current = particles.current.filter(p => p.life > 0);
+      particles.current.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.02;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+        ctx.fillStyle = p.color + Math.floor(p.life * 255).toString(16).padStart(2, '0');
+        ctx.fill();
+      });
+
+      animationFrame = requestAnimationFrame(animate);
+    };
+    animate();
+
+    return () => cancelAnimationFrame(animationFrame);
+  }, []);
+
+  const getPos = (e: React.PointerEvent) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    setIsDrawing(true);
+    const pos = getPos(e);
+    lastPos.current = pos;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect) playSound(pos.y, rect.height, pos.x, rect.width);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDrawing || !lastPos.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const pos = getPos(e);
+    const rect = canvas.getBoundingClientRect();
+
+    // Draw line with glow
+    const color = getColor(pos.y, rect.height);
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = color;
+    ctx.moveTo(lastPos.current.x, lastPos.current.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    ctx.shadowBlur = 0; // Reset shadow for other drawing
+
+    // Add particles
+    if (Math.random() > 0.5) {
+      particles.current.push({
+        x: pos.x,
+        y: pos.y,
+        vx: (Math.random() - 0.5) * 2,
+        vy: (Math.random() - 0.5) * 2,
+        size: Math.random() * 4 + 2,
+        color: color,
+        life: 1.0
+      });
+    }
+
+    // Play sound based on Y position
+    const dist = Math.hypot(pos.x - lastPos.current.x, pos.y - lastPos.current.y);
+    if (dist > 8) {
+      playSound(pos.y, rect.height, pos.x, rect.width);
+      lastPos.current = pos;
+    }
+  };
+
+  const handlePointerUp = () => {
+    setIsDrawing(false);
+    lastPos.current = null;
+  };
+
+  const getColor = (y: number, height: number) => {
+    const normalizedY = y / height;
+    if (normalizedY < 0.25) return '#A78BFA'; // Violet
+    if (normalizedY < 0.5) return '#F472B6';  // Pink
+    if (normalizedY < 0.75) return '#FB7185'; // Rose
+    return '#FBBF24'; // Amber
+  };
+
+  const playSound = (y: number, height: number, x: number, width: number) => {
+    audioEngine.init();
+    audioEngine.resume();
+    
+    const normalizedY = 1 - (y / height);
+    const minFreq = 130.81; // C3
+    const maxFreq = 1046.50; // C6
+    const freq = minFreq * Math.pow(maxFreq / minFreq, normalizedY);
+    
+    const color = getColor(y, height);
+    const volume = 0.1 + (x / width) * 0.2; // Volume maps to X position
+
+    if (audioEngine.ctx) {
+      audioEngine.playSketch(audioEngine.ctx.currentTime, freq, volume, color);
+    }
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = '#0A0A0A';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    particles.current = [];
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-500 to-violet-500 flex items-center justify-center shadow-lg shadow-pink-500/20">
+            <Pencil className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white tracking-tight uppercase">Sonic Sketchpad</h3>
+            <p className="text-[10px] text-pink-400/60 uppercase font-bold tracking-[0.2em]">Dessinez vos mélodies éthérées</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest hidden sm:block">Faites glisser pour jouer</span>
+          <button 
+            onClick={clearCanvas}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-900/50 text-zinc-400 border border-zinc-800 hover:text-pink-400 hover:border-pink-900/30 transition-all active:scale-95"
+            title="Effacer le dessin"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span className="text-[10px] font-bold uppercase tracking-widest">Effacer</span>
+          </button>
+        </div>
+      </div>
+      
+      <div className="relative group">
+        <div className="absolute -inset-1 bg-gradient-to-r from-pink-500/20 to-violet-500/20 rounded-[2rem] blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+        <div className="relative bg-zinc-950 rounded-[2rem] border border-pink-900/20 overflow-hidden shadow-2xl">
+          <canvas
+            ref={canvasRef}
+            width={1200}
+            height={300}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+            className="w-full h-48 sm:h-64 cursor-crosshair touch-none"
+          />
+          
+          {/* Visual Guides */}
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col justify-between h-[80%] pointer-events-none opacity-20">
+            <span className="text-[8px] font-bold text-violet-400 uppercase vertical-text">High</span>
+            <span className="text-[8px] font-bold text-amber-400 uppercase vertical-text">Low</span>
+          </div>
+          
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+            <p className="text-[10px] font-bold text-pink-500/30 uppercase tracking-[0.5em]">Studio Canvas</p>
+          </div>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 opacity-40">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-violet-400"></div>
+          <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500">Violet: High Pitch</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-pink-400"></div>
+          <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500">Pink: Mid-High</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-rose-400"></div>
+          <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500">Rose: Mid-Low</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div>
+          <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500">Amber: Low Pitch</span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function App() {
   const [bpm, setBpm] = useState(120);
@@ -657,6 +909,11 @@ export default function App() {
               <Layers className="w-4 h-4 text-pink-400" />
               <span className="text-[9px] font-bold uppercase tracking-widest text-pink-500">Multi-Touch Grid</span>
             </div>
+          </div>
+
+          {/* Sonic Sketchpad Section */}
+          <div className="pt-8 border-t border-pink-900/10">
+            <SonicSketchpad />
           </div>
         </div>
       </main>
