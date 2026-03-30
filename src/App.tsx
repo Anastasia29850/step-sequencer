@@ -917,8 +917,8 @@ export default function App() {
             <Music className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white">Pastel<span className="text-pink-400">Beats</span></h1>
-            <p className="text-[10px] uppercase tracking-widest text-pink-500/40 font-bold">Soft Studio Sequencer</p>
+            <h1 className="text-xl font-bold tracking-tight text-white">Crazy<span className="text-pink-400">Music</span></h1>
+            <p className="text-[10px] uppercase tracking-widest text-pink-500/40 font-bold">Wild Studio Sequencer</p>
           </div>
         </div>
 
