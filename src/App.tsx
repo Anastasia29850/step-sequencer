@@ -340,7 +340,7 @@ const DrawMusic = React.memo(({
   };
 
   return (
-    <div className="relative w-full h-96 bg-zinc-900/40 rounded-3xl border border-pink-900/10 overflow-hidden group">
+    <div className="relative w-full h-64 sm:h-96 bg-zinc-900/40 rounded-3xl border border-pink-900/10 overflow-hidden group">
       <div className="absolute top-4 left-6 z-10 flex items-center gap-3 pointer-events-none">
         <div className="p-2 bg-pink-500/20 rounded-lg">
           <Pencil className="w-4 h-4 text-pink-400" />
@@ -353,14 +353,14 @@ const DrawMusic = React.memo(({
       
       <button 
         onClick={() => setShowSettings(!showSettings)}
-        className="absolute top-4 right-16 z-10 p-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-500 hover:text-pink-400 rounded-xl border border-white/5 transition-all opacity-0 group-hover:opacity-100"
+        className="absolute top-4 right-14 sm:right-16 z-10 p-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-500 hover:text-pink-400 rounded-xl border border-white/5 transition-all sm:opacity-0 sm:group-hover:opacity-100"
         title="Paramètres du son"
       >
         <Sliders className="w-4 h-4" />
       </button>
 
       {showSettings && (
-        <div className="absolute top-16 right-6 z-20 p-4 bg-zinc-900/90 backdrop-blur-md rounded-2xl border border-pink-500/20 w-48 space-y-4 shadow-2xl">
+        <div className="absolute top-16 right-4 sm:right-6 z-20 p-4 bg-zinc-900/95 backdrop-blur-md rounded-2xl border border-pink-500/20 w-[calc(100%-2rem)] sm:w-48 space-y-4 shadow-2xl max-h-[80%] overflow-y-auto">
           <div className="space-y-1">
             <label className="text-[10px] text-zinc-400 uppercase font-bold">Oscillateur</label>
             <div className="grid grid-cols-2 gap-1">
@@ -436,7 +436,7 @@ const DrawMusic = React.memo(({
 
       <button 
         onClick={clearCanvas}
-        className="absolute top-4 right-6 z-10 p-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-500 hover:text-pink-400 rounded-xl border border-white/5 transition-all opacity-0 group-hover:opacity-100"
+        className="absolute top-4 right-4 sm:right-6 z-10 p-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-500 hover:text-pink-400 rounded-xl border border-white/5 transition-all sm:opacity-0 sm:group-hover:opacity-100"
         title="Effacer le dessin"
       >
         <Trash2 className="w-4 h-4" />
@@ -587,7 +587,7 @@ const PastelPop = ({ isAudioStarted }: { isAudioStarted: boolean }) => {
   };
 
   return (
-    <div className="mt-6 p-4 sm:p-8 bg-zinc-900/30 rounded-[2rem] border border-pink-500/5 relative overflow-hidden h-64 flex flex-col items-center justify-center group/game">
+    <div className="mt-6 p-4 sm:p-8 bg-zinc-900/30 rounded-[2rem] border border-pink-500/5 relative overflow-hidden h-48 sm:h-64 flex flex-col items-center justify-center group/game">
       <div className="absolute top-4 left-6 flex items-center gap-2 z-10">
         <div className="p-1.5 bg-pink-500/10 rounded-lg">
           <Sparkles className="w-3 h-3 text-pink-400" />
@@ -912,69 +912,74 @@ export default function App() {
     <div className="min-h-screen bg-[#0A0A0A] text-zinc-100 font-sans selection:bg-pink-500/30 flex flex-col">
       {/* Header / Top Bar */}
       <header className="w-full bg-black/40 border-b border-pink-900/20 p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 backdrop-blur-2xl sticky top-0 z-50">
-        <div className="flex items-center gap-4 self-start sm:self-auto">
-          <div className="w-10 h-10 rounded-2xl bg-pink-500 flex items-center justify-center shrink-0">
-            <Music className="w-5 h-5 text-white" />
+        <div className="flex items-center gap-3 sm:gap-4 self-start sm:self-auto">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-pink-500 flex items-center justify-center shrink-0">
+            <Music className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white">Crazy<span className="text-pink-400">Music</span></h1>
-            <p className="text-[10px] uppercase tracking-widest text-pink-500/40 font-bold">Wild Studio Sequencer</p>
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">Crazy<span className="text-pink-400">Music</span></h1>
+            <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-pink-500/40 font-bold">Wild Studio Sequencer</p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-4 sm:gap-8 w-full sm:w-auto">
-          <div className="flex items-center gap-4 bg-zinc-900/50 px-4 py-2 rounded-2xl border border-pink-900/20 flex-1 sm:flex-none justify-between sm:justify-start">
-            <label className="text-[10px] uppercase tracking-widest text-pink-400 font-bold">Tempo</label>
+        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 sm:gap-8 w-full sm:w-auto">
+          <div className="flex items-center gap-3 sm:gap-4 bg-zinc-900/50 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl border border-pink-900/20 flex-1 sm:flex-none justify-between sm:justify-start">
+            <label className="text-[8px] sm:text-[10px] uppercase tracking-widest text-pink-400 font-bold">Tempo</label>
             <input 
               type="range" 
               min="40" 
               max="240" 
               value={bpm} 
               onChange={(e) => setBpm(parseInt(e.target.value))}
-              className="w-24 sm:w-32 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-pink-500"
+              className="w-20 sm:w-32 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-pink-500"
             />
-            <span className="text-sm font-mono font-bold text-pink-400 w-8 sm:w-12 text-center">{bpm}</span>
+            <span className="text-xs sm:text-sm font-mono font-bold text-pink-400 w-6 sm:w-12 text-center">{bpm}</span>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button 
               onClick={resetAll}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold bg-zinc-900/50 text-zinc-400 border border-pink-900/20 hover:bg-zinc-800 transition-all active:scale-95"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-bold bg-zinc-900/50 text-zinc-400 border border-pink-900/20 hover:bg-zinc-800 transition-all active:scale-95"
               title="Réinitialiser tout"
             >
-              <Trash2 className="w-4 h-4" />
-              <span className="uppercase tracking-widest text-[10px]">Reset</span>
+              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="uppercase tracking-widest text-[8px] sm:text-[10px]">Reset</span>
             </button>
 
             <button 
               onClick={generateRandomComposition}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold bg-zinc-900/50 text-pink-400 border border-pink-900/20 hover:bg-zinc-800 transition-all active:scale-95"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-bold bg-zinc-900/50 text-pink-400 border border-pink-900/20 hover:bg-zinc-800 transition-all active:scale-95"
               title="Générer une composition aléatoire"
             >
-              <Sparkles className="w-4 h-4" />
-              <span className="uppercase tracking-widest text-[10px]">Random</span>
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="uppercase tracking-widest text-[8px] sm:text-[10px]">Random</span>
             </button>
 
             <button 
               onClick={togglePlay}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-3 px-6 sm:px-8 py-3 rounded-2xl font-bold transition-all duration-300 ${
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 sm:gap-3 px-4 sm:px-8 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-bold transition-all duration-300 ${
                 isPlaying 
                   ? 'bg-zinc-800 text-zinc-400 border border-zinc-700' 
                   : 'bg-pink-500 text-white hover:bg-pink-600 active:scale-95'
               }`}
             >
-              {isPlaying ? <Square className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
-              <span className="uppercase tracking-widest text-xs">{isPlaying ? 'Stop' : 'Play'}</span>
+              {isPlaying ? <Square className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" /> : <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />}
+              <span className="uppercase tracking-widest text-[10px] sm:text-xs">{isPlaying ? 'Stop' : 'Play'}</span>
             </button>
           </div>
         </div>
       </header>
 
       {/* Main Grid Area */}
-      <main className="flex-1 p-2 sm:p-4 lg:p-12 flex flex-col items-center justify-center overflow-x-hidden">
-        <div className="max-w-6xl w-full space-y-4 sm:space-y-8">
-          <div className="bg-zinc-900/40 rounded-3xl sm:rounded-[3rem] p-4 sm:p-8 lg:p-12 border border-pink-900/10 backdrop-blur-sm relative overflow-x-auto">
-            <div className="min-w-[600px] sm:min-w-[800px] space-y-6 sm:space-y-8">
+      <main className="flex-1 p-3 sm:p-6 lg:p-12 flex flex-col items-center justify-start sm:justify-center overflow-x-hidden">
+        <div className="max-w-6xl w-full space-y-6 sm:space-y-8">
+          <div className="bg-zinc-900/40 rounded-3xl sm:rounded-[3rem] p-4 sm:p-8 lg:p-12 border border-pink-900/10 backdrop-blur-sm relative">
+            <div className="absolute top-2 right-4 sm:hidden flex items-center gap-1 opacity-40">
+              <span className="text-[8px] uppercase font-bold tracking-widest text-pink-400">Scroll</span>
+              <Activity className="w-2 h-2 text-pink-400 animate-pulse" />
+            </div>
+            <div className="overflow-x-auto pb-4 scrollbar-hide">
+              <div className="min-w-[650px] sm:min-w-[800px] space-y-8 sm:space-y-10">
               {TRACKS.map((track) => {
                 const config = trackConfigs[track.id];
                 const ticksPerStep = config ? TICKS_PER_BAR / config.subdivision : 0;
@@ -1046,11 +1051,11 @@ export default function App() {
                         <div className="hidden sm:block flex-1"></div>
                       </div>
                       
-                      <div className="space-y-1">
+                      <div className="space-y-1 sm:space-y-2">
                         {SCALE_NOTES.map((note, noteIdx) => (
-                          <div key={note.note} className="flex items-center gap-3 sm:gap-6">
-                            <div className="w-8 sm:w-28 flex justify-end shrink-0">
-                              <span className="text-[8px] font-mono text-zinc-600 font-bold">{note.note}</span>
+                          <div key={note.note} className="flex items-center gap-2 sm:gap-6">
+                            <div className="w-6 sm:w-28 flex justify-end shrink-0">
+                              <span className="text-[7px] sm:text-[8px] font-mono text-zinc-600 font-bold">{note.note}</span>
                             </div>
                             <div 
                               className="grid gap-1 sm:gap-2 flex-1 touch-none"
@@ -1065,7 +1070,7 @@ export default function App() {
                                   onPointerDown={() => handlePointerDown(track.id, i, noteIdx)}
                                   onPointerEnter={() => handlePointerEnter(track.id, i, noteIdx)}
                                   className={`
-                                    h-5 sm:h-6 rounded-md transition-all duration-200 relative
+                                    h-6 sm:h-8 rounded-md transition-all duration-200 relative
                                     ${active 
                                       ? (activeStep === i ? `${track.activeColor} scale-[1.02]` : `${track.color} scale-[0.98]`) 
                                       : (activeStep === i ? 'bg-white/10 border-white/20' : 'bg-zinc-800/30 hover:bg-zinc-800/50 border border-white/5')}
@@ -1119,7 +1124,7 @@ export default function App() {
                     </div>
 
                     <div 
-                      className="grid gap-1 sm:gap-2 flex-1 touch-none"
+                      className="grid gap-1.5 sm:gap-2 flex-1 touch-none"
                       style={{ 
                         touchAction: 'none',
                         gridTemplateColumns: `repeat(${config.subdivision}, minmax(0, 1fr))`
@@ -1131,7 +1136,7 @@ export default function App() {
                           onPointerDown={() => handlePointerDown(track.id, i)}
                           onPointerEnter={() => handlePointerEnter(track.id, i)}
                           className={`
-                            aspect-square rounded-lg sm:rounded-xl transition-all duration-200 relative
+                            aspect-square min-h-[24px] sm:min-h-[32px] rounded-lg sm:rounded-xl transition-all duration-200 relative
                             ${active 
                               ? (activeStep === i ? `${track.activeColor} scale-[1.02]` : `${track.color} scale-[0.98]`) 
                               : (activeStep === i ? 'bg-white/10 border-white/20' : 'bg-zinc-800/50 hover:bg-zinc-800 border border-white/5')}
@@ -1154,7 +1159,7 @@ export default function App() {
               {/* Step Indicators (Master 16th Pulse) */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 pt-6 border-t border-pink-900/20">
                 <div className="hidden sm:block w-28"></div>
-                <div className="grid grid-cols-16 gap-1 sm:gap-2 flex-1">
+                <div className="grid grid-cols-[repeat(16,minmax(0,1fr))] gap-1 sm:gap-2 flex-1">
                   {Array.from({ length: 16 }).map((_, i) => {
                     // 16th note is every 96 / 16 = 6 ticks
                     const isTickActive = currentTick !== -1 && Math.floor(currentTick / 6) === i;
@@ -1169,6 +1174,7 @@ export default function App() {
               </div>
             </div>
           </div>
+        </div>
 
           <div className="flex flex-col sm:flex-row justify-center items-center gap-6 sm:gap-12 opacity-40">
             <div className="flex items-center gap-2">
@@ -1193,8 +1199,8 @@ export default function App() {
               </div>
             </div>
             <div className="space-y-3">
-              <h2 className="text-3xl font-bold text-white tracking-tight">Pastel<span className="text-pink-400">Beats</span></h2>
-              <p className="text-zinc-400 text-sm leading-relaxed">A soft, intuitive sequencer for effortless rhythm creation. Tap to begin.</p>
+              <h2 className="text-3xl font-bold text-white tracking-tight">Crazy<span className="text-pink-400">Music</span></h2>
+              <p className="text-zinc-400 text-sm leading-relaxed">A wild, intuitive sequencer for effortless rhythm creation. Tap to begin.</p>
             </div>
             <button 
               onClick={togglePlay}
